@@ -6,7 +6,7 @@
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge">
 </p>
 
-## ✨ What’s inside?
+## ✨ What's inside?
 | File | Purpose |
 |------|---------|
 | **publisher_profile.xml** | 🛰️ QoS settings for a **DataWriter** tuned for high-rate wireless links (large payloads, lossy Wi-Fi). |
@@ -17,16 +17,16 @@
 ---
 
 ## 📝 About the research
-Our forthcoming paper (accepted to IEEE INFOCOM 2025) investigates why ROS 2’s default DDS parameters under-perform over 802.11ac networks and proposes a lightweight remedy that:
+Our forthcoming paper (accepted to IEEE INFOCOM 2025) investigates why ROS 2's default DDS parameters under-perform over 802.11ac networks and proposes a lightweight remedy that:
 
 1. **Prevents IP fragmentation** by capping UDP payloads to 1472 bytes.  
 2. **Decouples control traffic** from data to avoid bursty retransmissions.  
-3. **Bounds writer history** so a reconnect doesn’t unleash a flood of stale samples.  
+3. **Bounds writer history** so a reconnect doesn't unleash a flood of stale samples.  
 4. **Maintains end-to-end reliability** without touching core Fast DDS code.  
 
 In 50 Mbps Wi-Fi tests with 4 AMRs streaming 1 MB images, the tuned profiles **cut average latency by 41 %** and **reduced jitter by 34 %** while preserving 100 % delivery ratio.
 
-A full methodological breakdown—experimental setup, analytical model, and ablation studies—appears in the paper’s §IV (Methods) and §V (Results).
+A full methodological breakdown—experimental setup, analytical model, and ablation studies—appears in the paper's §IV (Methods) and §V (Results).
 
 ---
 
@@ -47,3 +47,32 @@ export FASTRTPS_DEFAULT_PROFILES_FILE=$(pwd)/publisher_profile.xml
 # 3. Run a demo
 ros2 run image_tools cam2image    # publisher
 ros2 run image_tools showimage    # subscriber
+
+```
+
+---
+
+## 💡 Launch files: add
+```python
+os.environ["FASTRTPS_DEFAULT_PROFILES_FILE"] = "/path/to/publisher_profile.xml"
+```
+before node execution.
+
+---
+
+## 🔍 How profile settings tackle real problems
+| Wireless issue (from our experiments) | XML knob that fixes it |
+|--------------------------------------|------------------------|
+| 📦 IP fragmentation → loss | `<UDPv4TransportDescriptor><maxMessageSize>1472</...>` |
+| 🚦 Burst congestion on retransmit | `<disableHeartbeatPiggyback>true</...>` + tuned NACK delays |
+| 🗄️ Buffer blow-ups after outages | `<resourceLimitsQos><max_samples>12</...>` |
+| 🕒 Slow liveliness detection | `<liveliness>Automatic</...>` (keeps readers informed) |
+
+All parameters trace back to equations (2)–(4) in the paper's analytical model.
+
+---
+
+## 📚 Cite this work
+If these profiles help your research, please reference:
+
+**LEE et al.** "Optimizing ROS 2 Communication for Wireless Robotic Systems," IEEE  2025.
