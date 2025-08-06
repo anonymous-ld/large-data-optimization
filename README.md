@@ -2,9 +2,9 @@
 
 <p align="center">
   <img alt="ROS2 logo" src="https://img.shields.io/badge/ROS--2-Humble-blue?style=for-the-badge">
-  <img alt="Fast DDS logo" src="https://img.shields.io/badge/Fast--DDS-2.6.9+-brightgreen?style=for-the-badge">
-  <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge">
+  <img alt="Fast DDS logo" src="https://img.shields.io/badge/Fast--DDS-2.6.9-brightgreen?style=for-the-badge">
 </p>
+
 
 ## ✨ Essential QoS Settings for Topic Communication
 | QoS Policy| QoS Value | Function | 
@@ -13,20 +13,16 @@
 | **reliability** | **RELIABLE** | To ensure that every message sample is delivered without loss |
 | **reliability.max_blocking_time** | **A sufficiently large value** | To prevent publisher blocking or data loss |
 
----
 
-## 📝 About the research
-Our forthcoming paper (accepted to IEEE INFOCOM 2025) investigates why ROS 2's default DDS parameters under-perform over 802.11ac networks and proposes a lightweight remedy that:
+## 📝 About the optimizer
+Our forthcoming paper introduces an optimizer for configuring parameters to efficiently transmit large payloads.
 
-step 1. **Prevents IP fragmentation** Set RTPS maxMessageSize = 1472 B  
-step 2. **Decouples control traffic** Set retransmission rate *n* = *2r*   
-step 3. **Bounds writer history** Set HistoryCache size *N<sub>HC</sub> = floor( (T<sub>OS→Link</sub> · ω) / u )*
+> **Input**: Publish rate *r*, payload size *u*, link-layer throughput *T*<sub>OS→Link</sub>, link utilization 𝜔  
+> **Step 1**: **Prevents IP fragmentation** Set RTPS maxMessageSize = 1472 B  
+> **Step 2**: **Decouples control traffic** Set retransmission rate *n* = *2r*   
+> **Step 3**: **Bounds writer history** Set HistoryCache size as <div align="center"> <img width="169" height="56" alt="image" src="https://github.com/user-attachments/assets/e95dfebe-7b2a-4076-bee3-71e8b73491cb" /></div>
+> **Output**: Optimized ROS 2 XML QoS profile
 
-In 50 Mbps Wi-Fi tests with 4 AMRs streaming 1 MB images, the tuned profiles **cut average latency by 41 %** and **reduced jitter by 34 %** while preserving 100 % delivery ratio.
-
-A full methodological breakdown—experimental setup, analytical model, and ablation studies—appears in the paper's §IV (Methods) and §V (Results).
-
----
 
 ## ⚡ DDS_Optimizer.py
 ```python3
@@ -209,28 +205,20 @@ if __name__ == "__main__":
 
 ```
 
----
 
 ## 💡 How to run it from the terminal
 ```bash
 python3 DDS_Optimizer.py r={publish rate} u={payload size} T={link-layer throughput} w={link utilization}
 ```
 
----
 
-## 🔍 How profile settings tackle real problems
-| Wireless issue (from our experiments) | XML knob that fixes it |
-|--------------------------------------|------------------------|
-| 📦 IP fragmentation → loss | `<UDPv4TransportDescriptor><maxMessageSize>1472</...>` |
-| 🚦 Burst congestion on retransmit | `<disableHeartbeatPiggyback>true</...>` + tuned NACK delays |
-| 🗄️ Buffer blow-ups after outages | `<resourceLimitsQos><max_samples>12</...>` |
-| 🕒 Slow liveliness detection | `<liveliness>Automatic</...>` (keeps readers informed) |
+## 📢 Notice
 
-All parameters trace back to equations (2)–(4) in the paper's analytical model.
+This project is currently compatible with ROS 2 Humble using Fast DDS 2.6.9.
+Support for other DDS vendors such as Cyclone DDS and OpenDDS is planned in future updates.
 
----
 
 ## 📚 Cite this work
 If these profiles help your research, please reference:
 
-<!--**LEE et al.**--> "Optimizing ROS 2 Communication for Wireless Robotic Systems," IEEE INFOCOM 2026.
+<!--**LEE et al.**--> "Optimizing ROS 2 Communication for Wireless Robotic Systems," 
