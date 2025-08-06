@@ -1,4 +1,4 @@
-# 🚀 DDS Optimizer for Wirelss Transfer
+# 🚀 DDS Optimizer for Wirelss Large Payload Transfer
 
 <p align="center">
   <img alt="ROS2 logo" src="https://img.shields.io/badge/ROS--2-Humble-blue?style=for-the-badge">
@@ -6,21 +6,21 @@
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge">
 </p>
 
-## ✨ What's inside?
-| File | Purpose |
-|------|---------|
-| **publisher_profile.xml** | 🛰️ QoS settings for a **DataWriter** tuned for high-rate wireless links (large payloads, lossy Wi-Fi). |
-| **subscriber_profile.xml** | 📡 Complementary **DataReader** profile guaranteeing in-order, loss-free delivery. |
+## ✨ Essential QoS Settings for Topic Communication
+| QoS Policy| QoS Value | Function | 
+|------|---------|---------|
+| **history** | **KEEP_ALL** | To store all data without loss |
+| **reliability** | **RELIABLE** | To ensure that every message sample is delivered without loss |
+| **reliability.max_blocking_time** | **A sufficiently large value** | To prevent publisher blocking or data loss |
 
 ---
 
 ## 📝 About the research
 Our forthcoming paper (accepted to IEEE INFOCOM 2025) investigates why ROS 2's default DDS parameters under-perform over 802.11ac networks and proposes a lightweight remedy that:
 
-1. **Prevents IP fragmentation** by capping UDP payloads to 1472 bytes.  
-2. **Decouples control traffic** from data to avoid bursty retransmissions.  
-3. **Bounds writer history** so a reconnect doesn't unleash a flood of stale samples.  
-4. **Maintains end-to-end reliability** without touching core Fast DDS code.  
+step 1. **Prevents IP fragmentation** Set RTPS maxMessageSize = 1472 B  
+step 2. **Decouples control traffic** Set retransmission rate *n* = *2r*   
+step 3. **Bounds writer history** Set HistoryCache size *N<sub>HC</sub> = floor( (T<sub>OS→Link</sub> · ω) / u )*
 
 In 50 Mbps Wi-Fi tests with 4 AMRs streaming 1 MB images, the tuned profiles **cut average latency by 41 %** and **reduced jitter by 34 %** while preserving 100 % delivery ratio.
 
