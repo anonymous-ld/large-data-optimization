@@ -223,7 +223,6 @@ if __name__ == "__main__":
 ```bash
 git clone https://github.com/anonymous-ld/large-data-optimization.git
 cd large-data-optimization
-./scripts/install.sh
 ```
 
 
