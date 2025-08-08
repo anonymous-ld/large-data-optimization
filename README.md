@@ -219,15 +219,10 @@ if __name__ == "__main__":
 </div>
 
 
-## Quick Start
+## How to run it from the terminal
 ```bash
 git clone https://github.com/anonymous-ld/large-data-optimization.git
 cd large-data-optimization
-```
-
-
-## How to run it from the terminal
-```bash
 python3 DDS_Optimizer.py r={publish rate} u={payload size} T={link-layer throughput} w={link utilization}
 ```
 
