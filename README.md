@@ -219,7 +219,7 @@ if __name__ == "__main__":
 </div>
 
 
-## How to run it from the terminal
+## 💡 How to run it from the terminal
 ```bash
 git clone https://github.com/anonymous-ld/large-data-optimization.git
 cd large-data-optimization
