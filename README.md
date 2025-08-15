@@ -12,17 +12,6 @@ Wireless transmission of large payloads, such as high-resolution images and LiDA
 ## 📝 Paper Summary
 ROS 2 uses a DDS-based communication stack, but suffers from severe performance degradation when transmitting large payloads over wireless networks. The key root causes are identified as IP fragmentation, inefficient retransmission timing, and buffer bursts. To address these issues, the paper proposes a lightweight optimization framework that leverages only XML-based QoS configuration without modifying the DDS protocol. The optimization consists of: (i) setting the RTPS message size to 1472 B, (ii) configuring the retransmission rate as *n* = *2r*, and (iii) adjusting the HistoryCache size based on payload size *u* and link bandwidth. All improvements are fully compatible with existing ROS 2 applications and require no changes to application logic or middleware internals. Experiments were conducted on ROS 2 Humble using Fast DDS 2.6.9 version over IEEE 802.11ac wireless links. Test scenarios included different packet error rates (1%, 20%), temporary link outages, and varying payload sizes (32–512 KB). Default DDS and LARGE_DATA mode failed to maintain performance under high loss, while the proposed optimization remained stable up to 512 KB. The effectiveness of HistoryCache tuning was particularly evident in link outage recovery scenarios. Overall, this work demonstrates that practical, protocol-compliant DDS tuning enables robust and real-time wireless communication in ROS 2.
 
-
-## About the optimizer
-Our forthcoming paper introduces an optimizer for configuring parameters to efficiently transmit large payloads.
-
-> **Input**: Publish rate *r*, payload size *u*, link-layer throughput *T*<sub>OS→Link</sub>, link utilization 𝜔  
-> **Step 1**: **Prevents IP fragmentation** Set RTPS maxMessageSize = 1472 B  
-> **Step 2**: **Decouples control traffic** Set retransmission rate *n* = *2r*   
-> **Step 3**: **Bounds writer history** Set HistoryCache size as <div align="center"> <img width="169" height="56" alt="image" src="https://github.com/user-attachments/assets/e95dfebe-7b2a-4076-bee3-71e8b73491cb" /></div>
-> **Output**: Optimized ROS 2 XML QoS profile
-
-
 ## Essential QoS Settings for Topic Communication
 | QoS Policy| QoS Value | Function | 
 |------|---------|---------|
@@ -30,214 +19,149 @@ Our forthcoming paper introduces an optimizer for configuring parameters to effi
 | **reliability** | **RELIABLE** | To ensure that every message sample is delivered without loss |
 | **reliability.max_blocking_time** | **A sufficiently large value** | To prevent publisher blocking or data loss |
 
+## About DDS Optimizer
+Our forthcoming paper introduces an optimizer for configuring parameters to efficiently transmit large payloads.
 
-## ⚡ DDS_Optimizer.py
-```python3
-#!/usr/bin/env python3
-import sys
-import math
+> **Input**: Publish rate *r*, payload size *u*, link-layer throughput *T*<sub>OS→Link</sub>, link utilization 𝜔  
+> **Step 1**: **Prevents IP fragmentation** Set RTPS maxMessageSize = 1472 B  
+> **Step 2**: **Minimize Retransmission Jitter** Set retransmission rate *n* = *2r*   
+> **Step 3**: **Prevent Buffer Burst** Set HistoryCache size as <div align="center"> <img width="169" height="56" alt="image" src="https://github.com/user-attachments/assets/e95dfebe-7b2a-4076-bee3-71e8b73491cb" /></div>
+> **Output**: Optimized ROS 2 XML QoS profile
 
-def parse_args(args):
-    """Parse command-line arguments"""
-    params = {}
-    for arg in args:
-        if '=' in arg:
-            key, val = arg.split('=')
-            params[key.strip()] = float(val.strip())
-    return params
+### XML Configuration Details
 
-def compute_parameters(params):
-    """Compute QoS parameters based on input"""
-    r = params.get("r", 10)           # Publish rate [Hz]
-    u = params.get("u", 100000)       # Payload size [bytes]
-    T = params.get("T", 1e8)          # OS-to-Link throughput [bytes/sec]
-    w = params.get("w", 0.5)          # Link utilization (parsed but not used here)
+Each optimization step is implemented through specific XML configurations:
 
-    retrans_ns = int(1e9 / (2 * r))   # Heartbeat period in nanoseconds
-    history_cache = math.floor(T / u) # History cache size = floor(T / u)
+**Step 1: Prevents IP fragmentation**
 
-    return {
-        "r": int(r),
-        "u": int(u),
-        "T": int(T),
-        "w": w,
-        "retrans_ns": retrans_ns,
-        "history_cache": history_cache
-    }
+> **XML Configuration:**
+> ```xml
+> <transport_descriptor>
+>     <transport_id>udp_transport</transport_id>
+>     <type>UDPv4</type>
+>     <maxMessageSize>1472</maxMessageSize>
+> </transport_descriptor>
+> ```
 
-def generate_publisher_xml(params, output_file):
-    """Generate XML configuration for the publisher"""
-    xml_content = f"""<?xml version="1.0" encoding="UTF-8" ?>
-<dds xmlns="http://www.eprosima.com">
-    <profiles>
-        <transport_descriptors>
-            <transport_descriptor>
-                <transport_id>udp_transport</transport_id>
-                <type>UDPv4</type>
-                <maxMessageSize>1472</maxMessageSize>
-            </transport_descriptor>
-        </transport_descriptors>
-        <participant profile_name="optimizer_participant_pub_profile" is_default_profile="true">
-            <rtps>
-                <userTransports>
-                    <transport_id>udp_transport</transport_id>
-                </userTransports>
-                <useBuiltinTransports>false</useBuiltinTransports>
-            </rtps>
-        </participant>
-        <publisher profile_name="optimizer_publisher_profile" is_default_profile="true">
-            <topic>
-                <historyQos>
-                    <kind>KEEP_ALL</kind>
-                </historyQos>
-                <resourceLimitsQos>
-                    <max_samples>{params['history_cache']}</max_samples>
-                    <max_instances>10</max_instances>
-                    <max_samples_per_instance>{params['history_cache']}</max_samples_per_instance>
-                </resourceLimitsQos>
-            </topic>
-            <qos>
-                <disable_heartbeat_piggyback>true</disable_heartbeat_piggyback>
-                <reliability>
-                    <kind>RELIABLE</kind>
-                    <max_blocking_time>
-                        <sec>1000</sec>
-                    </max_blocking_time>
-                </reliability>
-            </qos>
-            <times>
-                <initialHeartbeatDelay>
-                    <nanosec>0</nanosec>
-                </initialHeartbeatDelay>
-                <heartbeatPeriod>
-                    <sec>0</sec>
-                    <nanosec>{params['retrans_ns']}</nanosec>
-                </heartbeatPeriod>
-                <nackResponseDelay>
-                    <nanosec>0</nanosec>
-                </nackResponseDelay>
-                <nackSupressionDuration>
-                    <sec>0</sec>
-                </nackSupressionDuration>
-            </times>
-        </publisher>
-    </profiles>
-</dds>
-"""
-    with open(output_file, "w") as f:
-        f.write(xml_content)
-    print(f"[INFO] Publisher XML generated: {output_file}")
+This setting limits the RTPS message size to 1472 bytes to prevent IP fragmentation over wireless networks.
 
-def generate_subscriber_xml(params, output_file):
-    """Generate XML configuration for the subscriber"""
-    xml_content = f"""<?xml version="1.0" encoding="UTF-8" ?>
-<dds xmlns="http://www.eprosima.com">
-   <profiles>
-        <transport_descriptors>
-            <transport_descriptor>
-                <transport_id>udp_transport</transport_id>
-                <type>UDPv4</type>
-                <maxMessageSize>1472</maxMessageSize>
-            </transport_descriptor>
-        </transport_descriptors>
-        <participant profile_name="optimizer_participant_sub_profile" is_default_profile="true">
-            <rtps>
-                <userTransports>
-                    <transport_id>udp_transport</transport_id>
-                </userTransports>
-                <useBuiltinTransports>false</useBuiltinTransports>
-            </rtps>
-        </participant>
-        <subscriber profile_name="optimizer_subscriber_profile" is_default_profile="true">
-            <topic>
-                <resourceLimitsQos>
-                    <max_samples>{params['history_cache']}</max_samples>
-                    <max_instances>10</max_instances>
-                    <max_samples_per_instance>{params['history_cache']}</max_samples_per_instance>
-                </resourceLimitsQos>
-            </topic>
-            <qos>
-                <liveliness>
-                    <kind>AUTOMATIC</kind>
-                    <lease_duration>
-                        <sec>DURATION_INFINITY</sec>
-                    </lease_duration>
-                    <announcement_period>
-                        <sec>DURATION_INFINITY</sec>
-                    </announcement_period>
-                </liveliness>
-            </qos>
-            <times>
-                <initialAcknackDelay>
-                    <sec>0</sec>
-                    <nanosec>0</nanosec>
-                </initialAcknackDelay>
-                <heartbeatResponseDelay>
-                    <sec>0</sec>
-                    <nanosec>0</nanosec>
-                </heartbeatResponseDelay>
-            </times>
-        </subscriber>
-    </profiles>
-</dds>
-"""
-    with open(output_file, "w") as f:
-        f.write(xml_content)
-    print(f"[INFO] Subscriber XML generated: {output_file}")
+**Step 2: Minimize Retransmission Jitter**
 
-def main():
-    required_keys = {"r", "u", "T", "w"}
+> **XML Configuration:**
+> ```xml
+> <heartbeatPeriod>
+>     <sec>0</sec>
+>     <nanosec>[Optimized Value]</nanosec>
+> </heartbeatPeriod>
+> ```
 
-    if len(sys.argv) < 2:
-        print("Usage: python3 DDS_Optimizer.py r=30 u=330000 T=90000000 w=0.6")
-        sys.exit(1)
+The heartbeat period is optimized to `n = 2r` where `r` is the publish rate, reducing retransmission jitter and improving control traffic efficiency.
 
-    args = parse_args(sys.argv[1:])
-    if not required_keys.issubset(args.keys()):
-        print("Usage: python3 DDS_Optimizer.py r=30 u=330000 T=90000000 w=0.6")
-        sys.exit(1)
+**Step 3: Prevent Buffer Burst**
 
-    qos = compute_parameters(args)
-    base_name = f"DDS_Optimizer_r{qos['r']}_u{qos['u']}_T{qos['T']//1_000_000}"
-    pub_filename = f"{base_name}_pub.xml"
-    sub_filename = f"{base_name}_sub.xml"
+> **XML Configuration:**
+> ```xml
+> <resourceLimitsQos>
+>     <max_samples>[Optimized Value]</max_samples>
+>     <max_instances>10</max_instances>
+>     <max_samples_per_instance>[Optimized Value]</max_samples_per_instance>
+> </resourceLimitsQos>
+> ```
 
-    generate_publisher_xml(qos, pub_filename)
-    generate_subscriber_xml(qos, sub_filename)
+The HistoryCache size is calculated as `⌊T × ω / u⌋` where:
+- `T` is the link-layer throughput
+- `ω` is the link utilization (default: 0.6-0.7, reduce for congested links)
+- `u` is the payload size
 
-    print(f"[INFO] HistoryCache_size = {qos['history_cache']} | Retransmission_ns = {qos['retrans_ns']}")
-
-if __name__ == "__main__":
-    main()
-
-```
-
-
-## Performance comparison across DDS modes and payload sizes
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/c5b10170-74ac-4b8a-a0e7-9dc8ac82e742" alt="table2" width="600">
-</div>
+This prevents buffer overflow and ensures stable data transmission by considering actual available bandwidth.
 
 
 ## 💡 How to run it from the terminal
+
+### Step-by-Step Guide
+
+#### 1. Navigate to your ROS 2 package directory
+```bash
+# Example: Navigate to ROS 2 package on Ubuntu
+cd ~/ros2_ws/src/your_package_name
+```
+
+#### 2. Verify that your code satisfies the Essential QoS Settings
+
+**Python version (rclpy):**
+```python
+qos = QoSProfile(
+    history=HistoryPolicy.KEEP_ALL,
+    reliability=ReliabilityPolicy.RELIABLE
+)
+# Publisher
+publisher = node.create_publisher(String, 'topic_name', qos)
+
+# Subscriber
+subscriber = node.create_subscription(String, 'topic_name', callback, qos)
+```
+
+**C++ version (rclcpp):**
+```cpp
+auto qos = rclcpp::QoS(10)
+    .keep_all()
+    .reliable();
+
+// Publisher
+auto publisher = node->create_publisher<std_msgs::msg::String>("topic_name", qos);
+
+// Subscriber
+auto subscriber = node->create_subscription<std_msgs::msg::String>(
+    "topic_name", qos, callback);
+```
+
+#### 3. Clone DDS Optimizer and navigate to the optimizer directory
 ```bash
 git clone https://github.com/anonymous-ld/large-data-optimization.git
 cd large-data-optimization
-python3 DDS_Optimizer.py r={publish rate} u={payload size} T={link-layer throughput} w={link utilization}
 ```
 
-### usage
-&nbsp;&nbsp;&nbsp;To generate the XML configuration file, use the following parameters:  
-&nbsp;&nbsp;&nbsp;[publish rate = 30 Hz], [payload size = 330 KB], [link-layer throughput = 90 Mb/s], and [link utilization = 0.6 (recommended range: 0.6–0.7)].
-```Input
+#### 4. Run DDS_Optimizer.py
+```bash
+# Basic usage
+python3 DDS_Optimizer.py r={publish rate} u={payload size} T={link-layer throughput} w={link utilization}
+
+# Example: [publish rate = 30 Hz], [payload size = 330 KB], [link-layer throughput = 90 Mb/s], [link utilization = 0.6]
 python3 DDS_Optimizer.py r=30 u=330000 T=90000000 w=0.6
 ```
-&nbsp;&nbsp;&nbsp;Then, the optimized XML file will be generated with the following output.
+
+**Output example:**
 ```
-[INFO] Publisher XML:DDS_Opimizer_r30_u330000_T90_pub.xml  
-[INFO] Subscriber XML:DDS_Opimizer_r30_u330000_T90_sub.xml  
-[INFO] HistoryCache_Size = 309 | Retransmission_ns = 16666666
+[INFO] Publisher XML: Optimized_profile_pub.xml
+[INFO] Subscriber XML: Optimized_profile_sub.xml
+[INFO] HistoryCache_size = 309 | Retransmission_ns = 16666666
 ```
+
+#### 5. Apply the generated XML to your pub and sub
+
+**5-1. Set as default XML using environment variables (Recommended)**
+```bash
+# Linux/macOS
+export FASTRTPS_DEFAULT_PROFILES_FILE=/path/to/generated_pub.xml
+```
+
+**5-2. Set the generated XML as default XML in your code**
+```python
+# Set environment variable in Python
+import os
+os.environ['FASTRTPS_DEFAULT_PROFILES_FILE'] = '/path/to/generated_pub.xml'
+```
+
+```cpp
+// Set environment variable in C++
+#include <cstdlib>
+setenv("FASTRTPS_DEFAULT_PROFILES_FILE", "/path/to/generated_pub.xml", 1);
+```
+
+## Performance Comparision
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/c5b10170-74ac-4b8a-a0e7-9dc8ac82e742" alt="table2" width="600">
+</div>
 
 
 ## 📢 Notice
