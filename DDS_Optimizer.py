@@ -3,7 +3,7 @@ import sys
 import math
 
 def parse_args(args):
-    """명령줄 인자 파싱"""
+    """Parse command line arguments"""
     params = {}
     for arg in args:
         if '=' in arg:
@@ -12,7 +12,7 @@ def parse_args(args):
     return params
 
 def compute_parameters(params):
-    """QoS 파라미터 계산"""
+    """Compute QoS parameters"""
     r = params.get("r", 10)
     u = params.get("u", 100000)
     T = params.get("T", 1e8)
@@ -31,7 +31,7 @@ def compute_parameters(params):
     }
 
 def generate_publisher_xml(params, output_file):
-    """Publisher용 XML 생성"""
+    """Generate Publisher XML"""
     xml_content = f"""<?xml version="1.0" encoding="UTF-8" ?>
 <dds xmlns="http://www.eprosima.com">
     <profiles>
@@ -94,7 +94,7 @@ def generate_publisher_xml(params, output_file):
     print(f"[INFO] Publisher XML: {output_file}")
 
 def generate_subscriber_xml(params, output_file):
-    """Subscriber용 XML 생성"""
+    """Generate Subscriber XML"""
     xml_content = f"""<?xml version="1.0" encoding="UTF-8" ?>
 <dds xmlns="http://www.eprosima.com">
    <profiles>
@@ -163,9 +163,8 @@ def main():
         sys.exit(1)
 
     qos = compute_parameters(args)
-    base_name = f"DDS_Optimizer_r{qos['r']}_u{qos['u']}_T{qos['T']//1_000_000}"
-    pub_filename = f"{base_name}_pub.xml"
-    sub_filename = f"{base_name}_sub.xml"
+    pub_filename = "Optimized_profile_pub.xml"
+    sub_filename = "Optimized_profile_sub.xml"
 
     generate_publisher_xml(qos, pub_filename)
     generate_subscriber_xml(qos, sub_filename)
