@@ -4,11 +4,6 @@
   <img alt="Fast DDS logo" src="https://img.shields.io/badge/Fast--DDS-2.6.9-brightgreen?style=for-the-badge">
 </p>
 
-
-## 📝 Abstract
-Wireless transmission of large payloads, such as high-resolution images and LiDAR point clouds, is a major bot tleneck in ROS 2, the leading open-source robotics middleware. The default Data Distribution Service (DDS) communication stack in ROS 2 exhibits significant performance degradation over lossy wireless links. Despite the widespread use of ROS 2, the underlying causes of these wireless communication challenges remain unexplored. In this paper, we present the first in-depth network-layer analysis of ROS 2’s DDS stack under wireless conditions with large payloads. We identify the following three key issues: excessive IP fragmentation, inefficient retransmission timing, and congestive buffer bursts. To address these issues, we propose a lightweight and fully compatible DDS optimization framework that tunes communication parameters based on link and payload characteristics. Our solution can be seamlessly applied through the standard ROS 2 application interface via simple XML-based QoS configuration, requiring no protocol modifications, no additional components, and virtually no in tegration efforts. Extensive experiments across various wireless scenarios demonstrate that our framework successfully delivers large payloads in conditions where existing DDS modes fail, while maintaining low end-to-end latency.
-
-
 ## 📝 Paper Summary
 ROS 2 uses a DDS-based communication stack, but suffers from severe performance degradation when transmitting large payloads over wireless networks. The key root causes are identified as IP fragmentation, inefficient retransmission timing, and buffer bursts. To address these issues, the paper proposes a lightweight optimization framework that leverages only XML-based QoS configuration without modifying the DDS protocol. The optimization consists of: (i) setting the RTPS message size to 1472 B, (ii) configuring the retransmission rate as *n* = *2r*, and (iii) adjusting the HistoryCache size based on payload size *u* and link bandwidth. All improvements are fully compatible with existing ROS 2 applications and require no changes to application logic or middleware internals. Experiments were conducted on ROS 2 Humble using Fast DDS 2.6.9 version over IEEE 802.11ac wireless links. Test scenarios included different packet error rates (1%, 20%), temporary link outages, and varying payload sizes (32–512 KB). Default DDS and LARGE_DATA mode failed to maintain performance under high loss, while the proposed optimization remained stable up to 512 KB. The effectiveness of HistoryCache tuning was particularly evident in link outage recovery scenarios. Overall, this work demonstrates that practical, protocol-compliant DDS tuning enables robust and real-time wireless communication in ROS 2.
 
@@ -55,7 +50,7 @@ This setting limits the RTPS message size to 1472 bytes to prevent IP fragmentat
 > </heartbeatPeriod>
 > ```
 
-The heartbeat period is optimized to `n = 2r` where `r` is the publish rate, reducing retransmission jitter and improving control traffic efficiency.
+The heartbeat rate is optimized to `n = 2r` where `r` is the publish rate, reducing retransmission jitter and improving control traffic efficiency.
 
 **Step 3: Prevent Buffer Burst**
 
